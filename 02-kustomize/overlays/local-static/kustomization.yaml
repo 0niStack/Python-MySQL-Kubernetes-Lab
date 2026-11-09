@@ -1,0 +1,12 @@
+# MySQL on a static local PV pinned to ONE node (edit storage.yaml first)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - storage.yaml
+patches:
+  - target: {kind: StatefulSet, name: mysql}
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: local-storage

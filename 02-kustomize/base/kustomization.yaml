@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespaces.yaml
+  - quotas.yaml
+  - mysql/serviceaccount.yaml
+  - mysql/service.yaml
+  - mysql/statefulset.yaml
+  - app/serviceaccount.yaml
+  - app/configmap.yaml
+  - app/service.yaml
+  - app/deployment.yaml
+  - network-policies.yaml
+
+# Change the image / tag here, or:
+#   cd base && kustomize edit set image ghcr.io/0nistack/python-mysql-lab=ghcr.io/0nistack/python-mysql-lab:v1.0.0
+images:
+  - name: ghcr.io/0nistack/python-mysql-lab
+    newTag: latest

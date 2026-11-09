@@ -1,0 +1,51 @@
+{{- /* ---- LOCAL, static: StorageClass (no provisioner) + one local PV ---- */ -}}
+{{- if and (eq .Values.storage.type "local") (eq .Values.storage.local.mode "static") }}
+{{- $s := .Values.storage.local.static }}
+{{- if or (not $s.nodeName) (hasPrefix "CHANGE_ME" $s.nodeName) }}{{ fail "set storage.local.static.nodeName to the node's kubernetes.io/hostname label value" }}{{ end }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $s.storageClassName }}
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mysql-local-pv
+  labels: {{- include "pml.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.storage.size }}
+  accessModes: [{{ .Values.storage.accessMode }}]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $s.storageClassName }}
+  volumeMode: Filesystem
+  local:
+    path: {{ $s.path }}
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [{{ $s.nodeName | quote }}]
+{{- end }}
+
+{{- /* ---- LONGHORN: optional dedicated StorageClass ---- */ -}}
+{{- if and (eq .Values.storage.type "longhorn") .Values.storage.longhorn.createStorageClass }}
+{{- $l := .Values.storage.longhorn }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $l.storageClassName }}
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: {{ $l.reclaimPolicy }}
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: {{ $l.numberOfReplicas | quote }}
+  staleReplicaTimeout: {{ $l.staleReplicaTimeout | quote }}
+  fsType: {{ $l.fsType | quote }}
+{{- end }}

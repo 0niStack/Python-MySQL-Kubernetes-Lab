@@ -1,0 +1,12 @@
+# MySQL on Longhorn (must already be installed; default StorageClass name: longhorn)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  # - storageclass-custom.yaml
+patches:
+  - target: {kind: StatefulSet, name: mysql}
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: longhorn          # or: longhorn-mysql (with storageclass-custom.yaml enabled)

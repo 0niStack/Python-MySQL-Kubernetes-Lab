@@ -1,0 +1,72 @@
+# ===================== DATABASE NAMESPACE (mydb) =====================
+# 1) Deny everything in and out of every pod in mydb
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: mydb}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# 2) Allow ONLY pods labelled app=web from namespace myapp, on 3306 only.
+#    namespaceSelector + podSelector in the SAME list item = AND.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-mysql-from-web-only, namespace: mydb}
+spec:
+  podSelector:
+    matchLabels: {app: mysql}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: myapp}
+          podSelector:
+            matchLabels: {app: web}
+      ports:
+        - {protocol: TCP, port: 3306}
+---
+# ===================== APP NAMESPACE (myapp) =====================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: myapp}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Web traffic in: only from the ingress controller namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-controller-to-web, namespace: myapp}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: ingress-nginx}
+      ports:
+        - {protocol: TCP, port: 8000}
+---
+# Traffic out: DNS + MySQL, nothing else
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-web-egress, namespace: myapp}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mydb}
+          podSelector:
+            matchLabels: {app: mysql}
+      ports:
+        - {protocol: TCP, port: 3306}

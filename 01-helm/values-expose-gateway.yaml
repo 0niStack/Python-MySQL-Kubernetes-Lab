@@ -1,0 +1,10 @@
+# Gateway API (needs a Gateway API controller + CRDs installed)
+expose:
+  mode: gateway
+  allowedCIDRs: ["0.0.0.0/0"]
+  gateway:
+    className: CHANGE_ME_GATEWAY_CLASS     # kubectl get gatewayclass
+    port: 80
+    address: ""                            # e.g. 10.0.0.50
+    hostname: ""
+    controllerNamespace: CHANGE_ME_CONTROLLER_NAMESPACE

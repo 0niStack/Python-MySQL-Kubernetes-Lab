@@ -1,0 +1,42 @@
+{{- if .Values.quotas.enabled }}
+{{- $q := .Values.quotas }}
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: myapp-quota, namespace: {{ .Values.namespaces.app }}}
+spec:
+  hard:
+    pods: {{ $q.app.pods | quote }}
+    requests.cpu: {{ $q.app.requestsCpu | quote }}
+    requests.memory: {{ $q.app.requestsMemory }}
+    limits.cpu: {{ $q.app.limitsCpu | quote }}
+    limits.memory: {{ $q.app.limitsMemory }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: myapp-defaults, namespace: {{ .Values.namespaces.app }}}
+spec:
+  limits:
+    - type: Container
+      default: {cpu: 250m, memory: 256Mi}
+      defaultRequest: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: mydb-quota, namespace: {{ .Values.namespaces.db }}}
+spec:
+  hard:
+    pods: {{ $q.db.pods | quote }}
+    persistentvolumeclaims: {{ $q.db.persistentvolumeclaims | quote }}
+    requests.storage: {{ $q.db.requestsStorage }}
+    limits.cpu: {{ $q.db.limitsCpu | quote }}
+    limits.memory: {{ $q.db.limitsMemory }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata: {name: mydb-defaults, namespace: {{ .Values.namespaces.db }}}
+spec:
+  limits:
+    - type: Container
+      default: {cpu: 500m, memory: 512Mi}
+      defaultRequest: {cpu: 250m, memory: 256Mi}
+{{- end }}

@@ -1,0 +1,70 @@
+{{- if .Values.networkPolicies.enabled }}
+# ===================== DATABASE NAMESPACE =====================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: {{ .Values.namespaces.db }}}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Allow ONLY app=web pods from the app namespace, on 3306 only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-mysql-from-web-only, namespace: {{ .Values.namespaces.db }}}
+spec:
+  podSelector:
+    matchLabels: {app: mysql}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.namespaces.app }}}
+          podSelector:
+            matchLabels: {app: web}
+      ports:
+        - {protocol: TCP, port: 3306}
+---
+# ===================== APP NAMESPACE =====================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny-all, namespace: {{ .Values.namespaces.app }}}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-controller-to-web, namespace: {{ .Values.namespaces.app }}}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.namespaces.ingressController }}}
+      ports:
+        - {protocol: TCP, port: {{ .Values.app.service.targetPort }}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-web-egress, namespace: {{ .Values.namespaces.app }}}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.namespaces.db }}}
+          podSelector:
+            matchLabels: {app: mysql}
+      ports:
+        - {protocol: TCP, port: 3306}
+{{- end }}

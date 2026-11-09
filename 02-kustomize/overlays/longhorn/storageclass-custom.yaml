@@ -1,0 +1,14 @@
+# OPTIONAL dedicated Longhorn StorageClass (e.g. 1 replica for a single-node lab).
+# To use it: uncomment it in kustomization.yaml AND change the patch value to longhorn-mysql.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-mysql
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  fsType: "ext4"

@@ -1,0 +1,15 @@
+# Let the gateway controller's data-plane pods reach web.
+# Set the namespace where they run (envoy-gateway-system, nginx-gateway, kube-system, ...)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-external-to-web, namespace: myapp}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: CHANGE_ME_CONTROLLER_NAMESPACE}
+      ports:
+        - {protocol: TCP, port: 8000}

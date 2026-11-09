@@ -1,0 +1,10 @@
+# MySQL on Longhorn (replicated block storage). Longhorn must already be installed.
+storage:
+  type: longhorn
+  longhorn:
+    storageClassName: longhorn
+    createStorageClass: false
+    # Single-node lab? set numberOfReplicas: "1" and createStorageClass: true with a custom name:
+    #   storageClassName: longhorn-mysql
+    #   createStorageClass: true
+    #   numberOfReplicas: "1"

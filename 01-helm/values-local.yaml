@@ -1,0 +1,6 @@
+# MySQL on a dynamically provisioned local volume (local-path)
+storage:
+  type: local
+  local:
+    mode: dynamic
+    storageClassName: local-path

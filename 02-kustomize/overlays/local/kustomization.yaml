@@ -1,0 +1,11 @@
+# MySQL on a dynamically provisioned local volume (StorageClass: local-path)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - target: {kind: StatefulSet, name: mysql}
+    patch: |-
+      - op: add
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: local-path        # use another name, or delete this patch for the cluster default

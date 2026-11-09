@@ -1,0 +1,86 @@
+{{- $mode := .Values.expose.mode }}
+{{- if not (has $mode (list "none" "nodePort" "gateway")) }}{{ fail "expose.mode must be none, nodePort or gateway" }}{{ end }}
+
+{{- /* ================= NodePort: http://<node-ip>:<port> ================= */ -}}
+{{- if eq $mode "nodePort" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-nodeport
+  namespace: {{ .Values.namespaces.app }}
+spec:
+  type: NodePort
+  externalTrafficPolicy: {{ .Values.expose.nodePort.externalTrafficPolicy }}
+  selector: {app: web}
+  ports:
+    - {name: http, port: {{ .Values.app.service.port }}, targetPort: {{ .Values.app.service.targetPort }}, nodePort: {{ .Values.expose.nodePort.port }}}
+{{- end }}
+
+{{- /* ================= Gateway API: Gateway + HTTPRoute ================= */ -}}
+{{- if eq $mode "gateway" }}
+{{- $g := .Values.expose.gateway }}
+{{- if or (not $g.className) (hasPrefix "CHANGE_ME" $g.className) }}{{ fail "set expose.gateway.className (kubectl get gatewayclass)" }}{{ end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: web-gateway
+  namespace: {{ .Values.namespaces.app }}
+spec:
+  gatewayClassName: {{ $g.className }}
+  {{- if $g.address }}
+  addresses:
+    - type: IPAddress
+      value: {{ $g.address | quote }}
+  {{- end }}
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: {{ $g.port }}
+      {{- if $g.hostname }}
+      hostname: {{ $g.hostname | quote }}
+      {{- end }}
+      allowedRoutes:
+        namespaces: {from: Same}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: web
+  namespace: {{ .Values.namespaces.app }}
+spec:
+  parentRefs:
+    - {name: web-gateway}
+  {{- if $g.hostname }}
+  hostnames: [{{ $g.hostname | quote }}]
+  {{- end }}
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {name: web, port: {{ .Values.app.service.port }}}
+{{- end }}
+
+{{- /* ================= NetworkPolicy: let the outside in ================= */ -}}
+{{- if and .Values.networkPolicies.enabled (ne $mode "none") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-external-to-web, namespace: {{ .Values.namespaces.app }}}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- if eq $mode "nodePort" }}
+        {{- range .Values.expose.allowedCIDRs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- else }}
+        {{- if or (not .Values.expose.gateway.controllerNamespace) (hasPrefix "CHANGE_ME" .Values.expose.gateway.controllerNamespace) }}{{ fail "set expose.gateway.controllerNamespace" }}{{ end }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ .Values.expose.gateway.controllerNamespace }}}
+        {{- end }}
+      ports:
+        - {protocol: TCP, port: {{ .Values.app.service.targetPort }}}
+{{- end }}

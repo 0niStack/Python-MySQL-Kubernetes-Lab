@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: web, namespace: {{ .Values.namespaces.app }}}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: app-config, namespace: {{ .Values.namespaces.app }}}
+data:
+  DB_HOST: mysql.{{ .Values.namespaces.db }}.svc.cluster.local
+  DB_PORT: "3306"
+  DB_NAME: {{ .Values.mysql.database }}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: web, namespace: {{ .Values.namespaces.app }}}
+spec:
+  selector: {app: web}
+  ports:
+    - {name: http, port: {{ .Values.app.service.port }}, targetPort: {{ .Values.app.service.targetPort }}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: {{ .Values.namespaces.app }}
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+    spec:
+      serviceAccountName: web
+      automountServiceAccountToken: false
+      {{- with .Values.app.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: web
+          image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+          imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: {{ .Values.app.service.targetPort }}}
+          envFrom:
+            - configMapRef: {name: app-config}
+            - secretRef: {name: app-db-credentials}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources: {{- toYaml .Values.app.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}

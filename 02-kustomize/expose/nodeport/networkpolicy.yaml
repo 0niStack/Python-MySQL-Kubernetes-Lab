@@ -1,0 +1,13 @@
+# default-deny in myapp blocks outside traffic, so allow it - RESTRICT the CIDR to your network
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-external-to-web, namespace: myapp}
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock: {cidr: 0.0.0.0/0}        # e.g. 10.0.0.0/8 or your office /24
+      ports:
+        - {protocol: TCP, port: 8000}

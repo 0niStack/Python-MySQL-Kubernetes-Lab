@@ -1,0 +1,13 @@
+{{- if .Values.namespaces.create }}
+{{- range $ns := list .Values.namespaces.app .Values.namespaces.db }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    pod-security.kubernetes.io/enforce: {{ $.Values.namespaces.podSecurity }}
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: {{ $.Values.namespaces.podSecurity }}
+{{- end }}
+{{- end }}

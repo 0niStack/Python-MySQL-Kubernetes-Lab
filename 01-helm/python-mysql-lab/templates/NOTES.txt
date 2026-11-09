@@ -1,0 +1,23 @@
+python-mysql-lab installed.
+
+  MySQL storage : {{ .Values.storage.type }}{{ if eq .Values.storage.type "local" }} ({{ .Values.storage.local.mode }}){{ end }}  -> StorageClass "{{ include "pml.storageClassName" . }}", {{ .Values.storage.size }}
+
+Check:
+  kubectl get pods,svc,networkpolicy -n {{ .Values.namespaces.app }}
+  kubectl get pods,svc,pvc,networkpolicy -n {{ .Values.namespaces.db }}
+
+Test the API:
+  kubectl -n {{ .Values.namespaces.app }} port-forward svc/web 8000:{{ .Values.app.service.port }}
+  curl localhost:8000/health/ready
+  curl localhost:8000/items
+{{- if eq .Values.expose.mode "nodePort" }}
+
+External access (NodePort):
+  http://<node-ip>:{{ .Values.expose.nodePort.port }}/health/ready
+  kubectl get nodes -o wide      # INTERNAL-IP / EXTERNAL-IP
+{{- else if eq .Values.expose.mode "gateway" }}
+
+External access (Gateway API):
+  kubectl -n {{ .Values.namespaces.app }} get gateway web-gateway    # ADDRESS column = the IP
+  curl http://<gateway-address>:{{ .Values.expose.gateway.port }}/health/ready{{ if .Values.expose.gateway.hostname }} -H "Host: {{ .Values.expose.gateway.hostname }}"{{ end }}
+{{- end }}

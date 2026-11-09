@@ -1,0 +1,6 @@
+apiVersion: v2
+name: python-mysql-lab
+description: FastAPI + SQLAlchemy app on MySQL 8.4 with restricted DB access (NetworkPolicy, PSA restricted). MySQL storage can be local or Longhorn.
+type: application
+version: 0.1.0
+appVersion: "latest"

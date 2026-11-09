@@ -1,0 +1,10 @@
+# MySQL on a static local PV pinned to one node (no provisioner needed)
+# Before install, on that node:  sudo mkdir -p /mnt/mysql-data
+storage:
+  type: local
+  local:
+    mode: static
+    static:
+      storageClassName: local-storage
+      nodeName: CHANGE_ME_NODE_HOSTNAME
+      path: /mnt/mysql-data

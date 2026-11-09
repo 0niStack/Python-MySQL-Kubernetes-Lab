@@ -1,0 +1,130 @@
+# ---------------------------------------------------------------------------
+# Namespaces (same layout as the original k8s/ folder)
+# ---------------------------------------------------------------------------
+namespaces:
+  app: myapp
+  db: mydb
+  # true  = chart creates both namespaces with Pod Security "restricted" labels
+  #         (install the release in a THIRD namespace, e.g. default)
+  # false = namespaces already exist (e.g. you use -n myapp --create-namespace)
+  create: true
+  podSecurity: restricted
+  # namespace of your ingress controller (the only one allowed to reach the web pods)
+  ingressController: ingress-nginx
+
+# ---------------------------------------------------------------------------
+# App (FastAPI)
+# ---------------------------------------------------------------------------
+app:
+  replicas: 2
+  image:
+    repository: ghcr.io/0nistack/python-mysql-lab
+    tag: latest
+    pullPolicy: Always
+  imagePullSecrets: []        # e.g. [{name: ghcr-pull}] if the GHCR package is private
+  service:
+    port: 80
+    targetPort: 8000
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
+# ---------------------------------------------------------------------------
+# MySQL
+# ---------------------------------------------------------------------------
+mysql:
+  image: mysql:8.4
+  database: appdb
+  user: appuser
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: 500m, memory: 1Gi}
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+secrets:
+  # true  = chart creates mysql-credentials (mydb) + app-db-credentials (myapp).
+  #         Empty passwords are generated randomly and KEPT across helm upgrade.
+  # false = you create both secrets yourself (scripts/create-secrets.sh style).
+  create: true
+  rootPassword: ""
+  appPassword: ""
+
+# ---------------------------------------------------------------------------
+# STORAGE  ->  choose where MySQL data lives
+#   storage.type: local     (see storage.local.*)
+#   storage.type: longhorn  (see storage.longhorn.*)
+# Quick switch:  -f values-local.yaml | -f values-local-static.yaml | -f values-longhorn.yaml
+# ---------------------------------------------------------------------------
+storage:
+  type: local
+  size: 5Gi
+  accessMode: ReadWriteOnce
+
+  local:
+    # dynamic = use an existing provisioner StorageClass (local-path on k3s/Rancher local-path-provisioner)
+    # static  = chart creates a StorageClass (no-provisioner) + one local PV pinned to a node
+    mode: dynamic
+    # dynamic: StorageClass name. "" = use the cluster default StorageClass.
+    storageClassName: local-path
+    # static: needs these (the directory must already exist on that node)
+    static:
+      storageClassName: local-storage
+      nodeName: ""            # value of the node's kubernetes.io/hostname label
+      path: /mnt/mysql-data   # e.g.  sudo mkdir -p /mnt/mysql-data
+
+  longhorn:
+    # Name of the StorageClass to use (the default Longhorn install creates "longhorn")
+    storageClassName: longhorn
+    # true = chart ALSO creates that StorageClass (use a custom name, e.g. longhorn-mysql)
+    createStorageClass: false
+    numberOfReplicas: "3"
+    staleReplicaTimeout: "30"
+    reclaimPolicy: Delete     # Delete | Retain
+    fsType: ext4
+
+# ---------------------------------------------------------------------------
+# Quotas / LimitRange / NetworkPolicy
+# ---------------------------------------------------------------------------
+quotas:
+  enabled: true
+  app:
+    pods: "10"
+    requestsCpu: "2"
+    requestsMemory: 2Gi
+    limitsCpu: "4"
+    limitsMemory: 4Gi
+  db:
+    pods: "3"
+    persistentvolumeclaims: "2"
+    requestsStorage: 10Gi
+    limitsCpu: "2"
+    limitsMemory: 2Gi
+
+networkPolicies:
+  enabled: true
+
+# ---------------------------------------------------------------------------
+# EXPOSE  ->  reach the app from outside by IP and port
+#   none      only inside the cluster (port-forward / ingress controller)
+#   nodePort  http://<any-node-ip>:<expose.nodePort.port>
+#   gateway   Gateway API: Gateway (listener port, optional fixed IP) + HTTPRoute
+# Quick switch:  -f values-expose-nodeport.yaml | -f values-expose-gateway.yaml
+# ---------------------------------------------------------------------------
+expose:
+  mode: none
+  # Who may reach the web pods from outside (NetworkPolicy ipBlock). Restrict it!
+  allowedCIDRs: ["0.0.0.0/0"]
+
+  nodePort:
+    port: 30080                    # 30000-32767
+    externalTrafficPolicy: Cluster # Local keeps the client IP (only nodes running a web pod answer)
+
+  gateway:
+    className: ""                  # REQUIRED: kubectl get gatewayclass
+    port: 80                       # listener port
+    address: ""                    # optional fixed IP (implementation must support spec.addresses)
+    hostname: ""                   # optional, e.g. app.example.com ("" = match any host)
+    # namespace where the gateway controller's data-plane pods run (traffic to web comes from there)
+    controllerNamespace: ""        # e.g. envoy-gateway-system, nginx-gateway, kube-system
